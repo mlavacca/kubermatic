@@ -31,11 +31,11 @@ import (
 )
 
 const (
-	OpenstackCCMDeploymentName = "openstack-cloud-controller-manager"
+	VsphereCCMDeploymentName = "vsphere-cloud-controller-manager"
 )
 
 var (
-	osResourceRequirements = corev1.ResourceRequirements{
+	vsphereResourceRequirements = corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
 			corev1.ResourceMemory: resource.MustParse("100Mi"),
 			corev1.ResourceCPU:    resource.MustParse("100m"),
@@ -47,19 +47,19 @@ var (
 	}
 )
 
-func openStackDeploymentCreator(data *resources.TemplateData) reconciling.NamedDeploymentCreatorGetter {
+func vsphereDeploymentCreator(data *resources.TemplateData) reconciling.NamedDeploymentCreatorGetter {
 	return func() (string, reconciling.DeploymentCreator) {
-		return OpenstackCCMDeploymentName, func(dep *appsv1.Deployment) (*appsv1.Deployment, error) {
-			dep.Name = OpenstackCCMDeploymentName
-			dep.Labels = resources.BaseAppLabels(OpenstackCCMDeploymentName, nil)
+		return VsphereCCMDeploymentName, func(dep *appsv1.Deployment) (*appsv1.Deployment, error) {
+			dep.Name = VsphereCCMDeploymentName
+			dep.Labels = resources.BaseAppLabels(VsphereCCMDeploymentName, nil)
 
 			dep.Spec.Replicas = resources.Int32(1)
 
 			dep.Spec.Selector = &metav1.LabelSelector{
-				MatchLabels: resources.BaseAppLabels(OpenstackCCMDeploymentName, nil),
+				MatchLabels: resources.BaseAppLabels(VsphereCCMDeploymentName, nil),
 			}
 
-			podLabels, err := data.GetPodTemplateLabels(OpenstackCCMDeploymentName, dep.Spec.Template.Spec.Volumes, nil)
+			podLabels, err := data.GetPodTemplateLabels(VsphereCCMDeploymentName, dep.Spec.Template.Spec.Volumes, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -77,12 +77,12 @@ func openStackDeploymentCreator(data *resources.TemplateData) reconciling.NamedD
 			f := false
 			dep.Spec.Template.Spec.AutomountServiceAccountToken = &f
 
-			openvpnSidecar, err := vpnsidecar.OpenVPNSidecarContainer(data, openvpnClientContainerName)
+			openvpnSidecar, err := vpnsidecar.OpenVPNSidecarContainer(data, VsphereCCMDeploymentName)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get openvpn sidecar: %v", err)
 			}
 
-			version, err := getOSVersion(data.Cluster().Spec.Version)
+			version, err := getVsphereVersion(data.Cluster().Spec.Version)
 			if err != nil {
 				return nil, err
 			}
@@ -104,7 +104,7 @@ func openStackDeploymentCreator(data *resources.TemplateData) reconciling.NamedD
 					Name:    ccmContainerName,
 					Image:   data.ImageRegistry(resources.RegistryDocker) + "/k8scloudprovider/openstack-cloud-controller-manager:v" + version,
 					Command: []string{"/bin/openstack-cloud-controller-manager"},
-					Args:    getOSFlags(data),
+					Args:    getVsphereFlags(data),
 					VolumeMounts: append(getVolumeMounts(), corev1.VolumeMount{
 						Name:      resources.CloudConfigConfigMapName,
 						MountPath: "/etc/kubernetes/cloud",
@@ -114,7 +114,7 @@ func openStackDeploymentCreator(data *resources.TemplateData) reconciling.NamedD
 			}
 
 			defResourceRequirements := map[string]*corev1.ResourceRequirements{
-				ccmContainerName:    osResourceRequirements.DeepCopy(),
+				ccmContainerName:    vsphereResourceRequirements.DeepCopy(),
 				openvpnSidecar.Name: openvpnSidecar.Resources.DeepCopy(),
 			}
 			err = resources.SetResourceRequirements(dep.Spec.Template.Spec.Containers, defResourceRequirements, nil, dep.Annotations)
@@ -127,43 +127,37 @@ func openStackDeploymentCreator(data *resources.TemplateData) reconciling.NamedD
 	}
 }
 
-func getOSFlags(data *resources.TemplateData) []string {
+func getVsphereFlags(data *resources.TemplateData) []string {
 	flags := []string{
 		"--kubeconfig=/etc/kubernetes/kubeconfig/kubeconfig",
 		"--v=1",
 		"--cloud-config=/etc/kubernetes/cloud/config",
-		"--cloud-provider=openstack",
+		"--cloud-provider=vsphere",
 	}
 	return flags
 }
 
-const latestOpenstackCCMVersion = "1.20.2"
+const latestCCMVersion = "2.2.1"
 
-func getOSVersion(version semver.Semver) (string, error) {
-	if version.Minor() < 17 {
-		return "", fmt.Errorf("kubernetes version %s is not supported", version.String())
-	}
-
+func getVsphereVersion(version semver.Semver) (string, error) {
 	switch version.Minor() {
 	case 17:
-		return "1.17.0", nil
+		return "2.1.1", nil
 	case 18:
-		return "1.18.0", nil
+		return latestCCMVersion, nil
 	case 19:
-		return "1.19.2", nil
+		return latestCCMVersion, nil
 	case 20:
-		return latestOpenstackCCMVersion, nil
-	case 21:
-		return latestOpenstackCCMVersion, nil
+		return latestCCMVersion, nil
 	default:
-		return latestOpenstackCCMVersion, nil
+		return "", fmt.Errorf("kubernetes version %s is not supported", version.String())
 	}
 }
 
-// OpenStackCloudControllerSupported checks if this version of Kubernetes is supported
+// VsphereCloudControllerSupported checks if this version of Kubernetes is supported
 // by our implementation of the external cloud controller.
-func OpenStackCloudControllerSupported(version semver.Semver) bool {
-	if _, err := getOSVersion(version); err != nil {
+func VsphereCloudControllerSupported(version semver.Semver) bool {
+	if _, err := getVsphereVersion(version); err != nil {
 		return false
 	}
 	return true
