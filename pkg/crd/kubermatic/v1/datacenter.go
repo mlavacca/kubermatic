@@ -257,6 +257,10 @@ type DatacenterSpecVSphere struct {
 	// The cluster hosting the VMs will be the same VM used as a template is
 	// located.
 	Cluster string `json:"cluster"`
+
+	// The name of the storage policy to use for the storage class created in the user cluster.
+	DefaultStoragePolicy string `json:"storage_policy"`
+
 	// Optional: The root path for cluster specific VM folders. Each cluster gets its own
 	// folder below the root folder. Must be the FQDN (for example
 	// "/datacenter-1/vm/all-kubermatic-vms-in-here") and defaults to the root VM
