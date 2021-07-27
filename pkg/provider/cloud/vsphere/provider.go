@@ -276,9 +276,6 @@ func (v *Provider) ValidateCloudSpec(spec kubermaticv1.CloudSpec) error {
 		}
 	}
 
-	if sp := spec.VSphere.StoragePolicy; sp == nil {
-
-	}
 	return nil
 }
 

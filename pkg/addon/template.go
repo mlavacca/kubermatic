@@ -99,6 +99,11 @@ func NewTemplateData(
 		}
 	}
 
+	var storagePolicy string
+	if cluster.Spec.Cloud.VSphere != nil {
+		storagePolicy = cluster.Spec.Cloud.VSphere.StoragePolicy
+	}
+
 	return &TemplateData{
 		DatacenterName: cluster.Spec.Cloud.DatacenterName,
 		Variables:      variables,
@@ -128,7 +133,8 @@ func NewTemplateData(
 				ServiceCIDRBlocks: cluster.Spec.ClusterNetwork.Services.CIDRBlocks,
 				ProxyMode:         cluster.Spec.ClusterNetwork.ProxyMode,
 			},
-			CNIPlugin: cniPlugin,
+			CNIPlugin:     cniPlugin,
+			StoragePolicy: storagePolicy,
 		},
 	}, nil
 }
@@ -182,6 +188,8 @@ type ClusterData struct {
 	Features sets.String
 	// CNIPlugin contains the CNIPlugin settings
 	CNIPlugin CNIPlugin
+	// StoragePolicy is the storage policy to use for vsphere csi addon
+	StoragePolicy string
 }
 
 type ClusterNetwork struct {
