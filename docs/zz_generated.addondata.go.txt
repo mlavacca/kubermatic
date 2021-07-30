@@ -56,6 +56,8 @@ type ClusterData struct {
 	Features sets.String
 	// CNIPlugin contains the CNIPlugin settings
 	CNIPlugin CNIPlugin
+	// StoragePolicy is the storage policy to use for vsphere csi addon
+	StoragePolicy string
 }
 
 type ClusterNetwork struct {
