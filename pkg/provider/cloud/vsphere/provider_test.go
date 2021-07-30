@@ -190,7 +190,7 @@ func TestProviderValidateCloudSpec(t *testing.T) {
 			dc:   &kubermaticv1.DatacenterSpecVSphere{DefaultStoragePolicy: fakeStoragePolicy},
 			spec: kubermaticv1.CloudSpec{
 				VSphere: &kubermaticv1.VSphereCloudSpec{
-					Datastore: "LocalDS_0",
+					Datastore:     "LocalDS_0",
 					StoragePolicy: fakeStoragePolicy,
 				},
 			},
@@ -218,7 +218,7 @@ func TestProviderValidateCloudSpec(t *testing.T) {
 		{
 			name: "Default datastore at datacenter level",
 			dc: &kubermaticv1.DatacenterSpecVSphere{
-				DefaultDatastore: "LocalDS_0",
+				DefaultDatastore:     "LocalDS_0",
 				DefaultStoragePolicy: fakeStoragePolicy,
 			},
 			spec: kubermaticv1.CloudSpec{
@@ -238,7 +238,7 @@ func TestProviderValidateCloudSpec(t *testing.T) {
 		{
 			name: "Default datastore at datacenter overridden at cluster level",
 			dc: &kubermaticv1.DatacenterSpecVSphere{
-				DefaultDatastore: "LocalDS_0",
+				DefaultDatastore:     "LocalDS_0",
 				DefaultStoragePolicy: fakeStoragePolicy,
 			},
 			spec: kubermaticv1.CloudSpec{
@@ -262,7 +262,7 @@ func TestProviderValidateCloudSpec(t *testing.T) {
 		{
 			name: "Default datastore at datacenter and datastore cluster at cluster level",
 			dc: &kubermaticv1.DatacenterSpecVSphere{
-				DefaultDatastore: "LocalDS_0",
+				DefaultDatastore:     "LocalDS_0",
 				DefaultStoragePolicy: fakeStoragePolicy,
 			},
 			spec: kubermaticv1.CloudSpec{
