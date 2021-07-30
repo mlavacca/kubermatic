@@ -28,6 +28,10 @@ import (
 	"k8c.io/kubermatic/v2/pkg/resources"
 )
 
+const (
+	fakeStoragePolicy = "fake_storage_policy"
+)
+
 func TestGetCredentialsForCluster(t *testing.T) {
 	tcs := []struct {
 		name              string
@@ -183,16 +187,17 @@ func TestProviderValidateCloudSpec(t *testing.T) {
 		},
 		{
 			name: "No datastore at Datacenter level but datastore at cluster level",
-			dc:   &kubermaticv1.DatacenterSpecVSphere{},
+			dc:   &kubermaticv1.DatacenterSpecVSphere{DefaultStoragePolicy: fakeStoragePolicy},
 			spec: kubermaticv1.CloudSpec{
 				VSphere: &kubermaticv1.VSphereCloudSpec{
 					Datastore: "LocalDS_0",
+					StoragePolicy: fakeStoragePolicy,
 				},
 			},
 		},
 		{
 			name: "No datastore at Datacenter level but datastore cluster at cluster level",
-			dc:   &kubermaticv1.DatacenterSpecVSphere{},
+			dc:   &kubermaticv1.DatacenterSpecVSphere{DefaultStoragePolicy: fakeStoragePolicy},
 			spec: kubermaticv1.CloudSpec{
 				VSphere: &kubermaticv1.VSphereCloudSpec{
 					DatastoreCluster: "DC0_POD0",
@@ -214,6 +219,7 @@ func TestProviderValidateCloudSpec(t *testing.T) {
 			name: "Default datastore at datacenter level",
 			dc: &kubermaticv1.DatacenterSpecVSphere{
 				DefaultDatastore: "LocalDS_0",
+				DefaultStoragePolicy: fakeStoragePolicy,
 			},
 			spec: kubermaticv1.CloudSpec{
 				VSphere: &kubermaticv1.VSphereCloudSpec{},
@@ -233,6 +239,7 @@ func TestProviderValidateCloudSpec(t *testing.T) {
 			name: "Default datastore at datacenter overridden at cluster level",
 			dc: &kubermaticv1.DatacenterSpecVSphere{
 				DefaultDatastore: "LocalDS_0",
+				DefaultStoragePolicy: fakeStoragePolicy,
 			},
 			spec: kubermaticv1.CloudSpec{
 				VSphere: &kubermaticv1.VSphereCloudSpec{
@@ -256,6 +263,7 @@ func TestProviderValidateCloudSpec(t *testing.T) {
 			name: "Default datastore at datacenter and datastore cluster at cluster level",
 			dc: &kubermaticv1.DatacenterSpecVSphere{
 				DefaultDatastore: "LocalDS_0",
+				DefaultStoragePolicy: fakeStoragePolicy,
 			},
 			spec: kubermaticv1.CloudSpec{
 				VSphere: &kubermaticv1.VSphereCloudSpec{
