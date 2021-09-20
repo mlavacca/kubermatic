@@ -37,6 +37,7 @@ import (
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/api/policy/v1beta1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -165,6 +166,7 @@ func Add(
 		&apiextensionsv1.CustomResourceDefinition{},
 		&appsv1.Deployment{},
 		&v1beta1.PodDisruptionBudget{},
+		&batchv1.Job{},
 	}
 
 	// Avoid getting triggered by the leader lease AKA: If the annotation exists AND changed on
@@ -259,6 +261,7 @@ type reconciler struct {
 	cloudProvider         kubermaticv1.ProviderType
 	clusterName           string
 	isKonnectivityEnabled bool
+	isKymaEnabled         bool
 	ccmMigration          bool
 	ccmMigrationCompleted bool
 

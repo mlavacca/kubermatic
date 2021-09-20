@@ -285,6 +285,8 @@ func getImagesFromCreators(log *zap.SugaredLogger, templateData *resources.Templ
 
 	cronjobCreators := kubernetescontroller.GetCronJobCreators(templateData)
 
+	jobCreators := kubernetescontroller.GetJobCreators(templateData)
+
 	for _, creatorGetter := range statefulsetCreators {
 		_, creator := creatorGetter()
 		statefulset, err := creator(&appsv1.StatefulSet{})
@@ -310,6 +312,15 @@ func getImagesFromCreators(log *zap.SugaredLogger, templateData *resources.Templ
 			return nil, err
 		}
 		images = append(images, getImagesFromPodSpec(cronJob.Spec.JobTemplate.Spec.Template.Spec)...)
+	}
+
+	for _, createFunc := range jobCreators {
+		_, creator := createFunc()
+		job, err := creator(&batchv1.Job{})
+		if err != nil {
+			return nil, err
+		}
+		images = append(images, getImagesFromPodSpec(job.Spec.Template.Spec)...)
 	}
 
 	return images, nil
