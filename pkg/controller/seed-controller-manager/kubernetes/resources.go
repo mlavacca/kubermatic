@@ -152,6 +152,11 @@ func (r *Reconciler) ensureResourcesAreDeployed(ctx context.Context, cluster *ku
 		return err
 	}
 
+	// check that all Jobs are created
+	if err := r.ensureJobs(ctx, cluster, data); err != nil {
+		return err
+	}
+
 	// check that all PodDisruptionBudgets are created
 	if err := r.ensurePodDisruptionBudgets(ctx, cluster, data); err != nil {
 		return err
@@ -568,6 +573,22 @@ func (r *Reconciler) ensureCronJobs(ctx context.Context, c *kubermaticv1.Cluster
 	creators := GetCronJobCreators(data)
 
 	if err := reconciling.ReconcileCronJobs(ctx, creators, c.Status.NamespaceName, r.Client, reconciling.OwnerRefWrapper(resources.GetClusterRef(c))); err != nil {
+		return fmt.Errorf("failed to ensure that the CronJobs exists: %v", err)
+	}
+
+	return nil
+}
+
+func GetJobCreators(data *resources.TemplateData) []reconciling.NamedJobCreatorGetter {
+	return []reconciling.NamedJobCreatorGetter{
+		// TODO: add the KYMA job creator
+	}
+}
+
+func (r *Reconciler) ensureJobs(ctx context.Context, c *kubermaticv1.Cluster, data *resources.TemplateData) error {
+	creators := GetJobCreators(data)
+
+	if err := reconciling.ReconcileJobs(ctx, creators, c.Status.NamespaceName, r.Client, reconciling.OwnerRefWrapper(resources.GetClusterRef(c))); err != nil {
 		return fmt.Errorf("failed to ensure that the CronJobs exists: %v", err)
 	}
 

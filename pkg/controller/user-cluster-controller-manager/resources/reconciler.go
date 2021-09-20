@@ -35,6 +35,7 @@ import (
 	"k8c.io/kubermatic/v2/pkg/controller/user-cluster-controller-manager/resources/resources/konnectivity"
 	kubestatemetrics "k8c.io/kubermatic/v2/pkg/controller/user-cluster-controller-manager/resources/resources/kube-state-metrics"
 	kubernetesdashboard "k8c.io/kubermatic/v2/pkg/controller/user-cluster-controller-manager/resources/resources/kubernetes-dashboard"
+	"k8c.io/kubermatic/v2/pkg/controller/user-cluster-controller-manager/resources/resources/kyma"
 	machinecontroller "k8c.io/kubermatic/v2/pkg/controller/user-cluster-controller-manager/resources/resources/machine-controller"
 	metricsserver "k8c.io/kubermatic/v2/pkg/controller/user-cluster-controller-manager/resources/resources/metrics-server"
 	"k8c.io/kubermatic/v2/pkg/controller/user-cluster-controller-manager/resources/resources/mla"
@@ -208,6 +209,12 @@ func (r *reconciler) reconcile(ctx context.Context) error {
 
 	if r.isKonnectivityEnabled {
 		if err := r.reconcileKonnectivityDeployments(ctx); err != nil {
+			return err
+		}
+	}
+
+	if true {
+		if err := r.reconcileKymaInstallation(ctx); err != nil {
 			return err
 		}
 	}
@@ -961,3 +968,18 @@ func (r *reconciler) getUserClusterPrometheusCustomScrapeConfigs(ctx context.Con
 	}
 	return customScrapeConfigs, nil
 }
+
+func (r *reconciler) reconcileKymaInstallation(ctx context.Context) error {
+	creators := make([]reconciling.NamedJobCreatorGetter, 0)
+	creators = append(creators, kyma.ControllerJobCreator())
+
+	if err := reconciling.ReconcileJobs(ctx, creators, metav1.NamespaceSystem, r.Client); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+/*func (r *reconciler) reconcileKymaUninstallation(ctx context.Context) error {
+	// TODO: KYMA uninstall
+}*/

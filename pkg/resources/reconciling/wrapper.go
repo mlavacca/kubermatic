@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -235,5 +236,24 @@ func DefaultCronJob(creator CronJobCreator) CronJobCreator {
 		}
 
 		return cj, nil
+	}
+}
+
+// DefaultJob defaults all CronJob attributes to the same values as they would get from the Kubernetes API
+func DefaultJob(creator JobCreator) JobCreator {
+	return func(job *batchv1.Job) (*batchv1.Job, error) {
+		old := job.DeepCopy()
+
+		job, err := creator(job)
+		if err != nil {
+			return nil, err
+		}
+
+		job.Spec.Template.Spec, err = DefaultPodSpec(old.Spec.Template.Spec, job.Spec.Template.Spec)
+		if err != nil {
+			return nil, err
+		}
+
+		return job, nil
 	}
 }

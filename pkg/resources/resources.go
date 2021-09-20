@@ -317,6 +317,10 @@ const (
 
 	// KubermaticNamespace is the main kubermatic namespace
 	KubermaticNamespace = "kubermatic"
+
+	JobInstallationName   = "kyma-installation-job"
+	JobUninstallationName = "kyma-uninstallation-job"
+
 	// GatekeeperControllerDeploymentName is the name of the gatekeeper controller deployment
 	GatekeeperControllerDeploymentName = "gatekeeper-controller-manager"
 	// GatekeeperAuditDeploymentName is the name of the gatekeeper audit deployment
