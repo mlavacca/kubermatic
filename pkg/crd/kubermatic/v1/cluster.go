@@ -174,6 +174,12 @@ type ClusterSpec struct {
 
 	// CNIPlugin contains the spec of the CNI plugin to be installed in the cluster.
 	CNIPlugin *CNIPluginSettings `json:"cniPlugin,omitempty"`
+
+	Kyma *KymaSettings `json:"kyma,omitempty"`
+}
+
+type KymaSettings struct {
+	Enabled bool `json:"enabled"`
 }
 
 // CNIPluginSettings contains the spec of the CNI plugin used by the Cluster.
@@ -260,6 +266,8 @@ const (
 	// When this condition is `true` CSIMigration{provider}Complete can be
 	// enabled.
 	ClusterConditionCSIKubeletMigrationCompleted ClusterConditionType = "CSIKubeletMigrationCompleted"
+
+	ClusterConditionKymaInstalled ClusterConditionType = "KymaInstalled"
 
 	ReasonClusterUpdateSuccessful             = "ClusterUpdateSuccessful"
 	ReasonClusterUpdateInProgress             = "ClusterUpdateInProgress"
