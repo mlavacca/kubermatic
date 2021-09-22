@@ -54,6 +54,7 @@ func ControllerJobCreator() reconciling.NamedJobCreatorGetter {
 				return nil, fmt.Errorf("failed to set resource requirements: %v", err)
 			}
 
+			// TODO: add the admin-kubeconfig volume
 			/*job.Spec.Template.Spec.Volumes = []corev1.Volume{
 				{
 					Name: resources.GatekeeperWebhookServerCertSecretName,

@@ -3,12 +3,15 @@ package kyma
 import (
 	"context"
 	"fmt"
+
 	"go.uber.org/zap"
-	kubermaticapiv1 "k8c.io/kubermatic/v2/pkg/api/v1"
+
 	kubermaticv1 "k8c.io/kubermatic/v2/pkg/crd/kubermatic/v1"
 	"k8c.io/kubermatic/v2/pkg/crd/kubermatic/v1/helper"
-	kuberneteshelper "k8c.io/kubermatic/v2/pkg/kubernetes"
+	"k8c.io/kubermatic/v2/pkg/resources/kyma"
+	"k8c.io/kubermatic/v2/pkg/resources/reconciling"
 	"k8c.io/kubermatic/v2/pkg/util/workerlabel"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/record"
@@ -22,8 +25,6 @@ import (
 
 const (
 	ControllerName = "kyma_controller"
-
-	finalizer = kubermaticapiv1.SeedClusterTemplateInstanceFinalizer
 )
 
 type reconciler struct {
@@ -40,7 +41,8 @@ func Add(
 	log *zap.SugaredLogger,
 	workerName string,
 	namespace string,
-	numWorkers int) error {
+	numWorkers int,
+) error {
 
 	workerSelector, err := workerlabel.LabelSelector(workerName)
 	if err != nil {
@@ -93,7 +95,20 @@ func (r *reconciler) reconcile(ctx context.Context, cluster *kubermaticv1.Cluste
 		return nil
 	}
 
+	// If we don't need any specific additional logic to deploy this job, we can simply use the kubernetes controller in
+	// the seed-controller-manager
+	// TODO: check if kyma has been already correctly installed too
 	if cluster.Spec.Kyma != nil {
-		
+		kymaInstaller := []reconciling.NamedJobCreatorGetter{
+			kyma.ControllerJobCreator(),
+		}
+
+		if err := reconciling.ReconcileJobs(ctx, kymaInstaller, cluster.Status.NamespaceName, r.seedClient); err != nil {
+			return err
+		}
+
+		return nil
 	}
+
+	return nil
 }
