@@ -156,6 +156,8 @@ const (
 	// ClusterAutoscalerKubeconfigSecretName is the name of the kubeconfig secret used for
 	// the cluster-autoscaler
 	ClusterAutoscalerKubeconfigSecretName = "cluster-autoscaler-kubeconfig"
+	// KymaInstallerKubeconfigSecretName is the name of the kubeconfig secret user for Kyma
+	KymaInstallerKubeconfigSecretName = "kyma-installer-kubeconfig"
 	// KubernetesDashboardKubeconfigSecretName is the name of the kubeconfig secret user for Kubernetes Dashboard
 	KubernetesDashboardKubeconfigSecretName = "kubernetes-dashboard-kubeconfig"
 
@@ -259,6 +261,8 @@ const (
 	PrometheusCertUsername = "prometheus"
 	// ClusterAutoscalerCertUsername is the name of the user coming from the CA kubeconfig cert
 	ClusterAutoscalerCertUsername = "kubermatic:cluster-autoscaler"
+	// KymaInstallerCertUsername is the name of the user coming from the kubeconfig cert
+	KymaInstallerCertUsername = "kubermatic:kyma-installer"
 	// KubernetesDashboardCertUsername is the name of the user coming from kubeconfig cert
 	KubernetesDashboardCertUsername = "kubermatic:kubernetes-dashboard"
 	// MetricsScraperServiceAccountUsername is the name of the user coming from kubeconfig cert
@@ -318,8 +322,8 @@ const (
 	// KubermaticNamespace is the main kubermatic namespace
 	KubermaticNamespace = "kubermatic"
 
-	JobInstallationName   = "kyma-installation-job"
-	JobUninstallationName = "kyma-uninstallation-job"
+	KymaJobInstallationName   = "kyma-installation-job"
+	KymaJobUninstallationName = "kyma-uninstallation-job"
 
 	// GatekeeperControllerDeploymentName is the name of the gatekeeper controller deployment
 	GatekeeperControllerDeploymentName = "gatekeeper-controller-manager"

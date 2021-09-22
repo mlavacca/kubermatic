@@ -19,6 +19,7 @@ package kubernetes
 import (
 	"context"
 	"fmt"
+	"k8c.io/kubermatic/v2/pkg/resources/kyma"
 
 	kubermaticv1 "k8c.io/kubermatic/v2/pkg/crd/kubermatic/v1"
 	"k8c.io/kubermatic/v2/pkg/resources"
@@ -153,9 +154,9 @@ func (r *Reconciler) ensureResourcesAreDeployed(ctx context.Context, cluster *ku
 	}
 
 	// check that all Jobs are created
-	if err := r.ensureJobs(ctx, cluster, data); err != nil {
+	/*if err := r.ensureJobs(ctx, cluster, data); err != nil {
 		return err
-	}
+	}*/
 
 	// check that all PodDisruptionBudgets are created
 	if err := r.ensurePodDisruptionBudgets(ctx, cluster, data); err != nil {
@@ -362,6 +363,12 @@ func (r *Reconciler) GetSecretCreators(data *resources.TemplateData) []reconcili
 		apiserver.TokenViewerCreator(),
 		apiserver.TokenUsersCreator(data),
 		resources.ViewerKubeconfigCreator(data),
+	}
+
+	if _, ok := data.Cluster().Labels["kyma"]; ok {
+		creators = append(creators,
+			resources.GetInternalKubeconfigCreator(resources.KymaInstallerKubeconfigSecretName, resources.InternalUserClusterAdminKubeconfigCertUsername, []string{"system:masters"}, data),
+		)
 	}
 
 	if data.IsKonnectivityEnabled() {
@@ -580,9 +587,13 @@ func (r *Reconciler) ensureCronJobs(ctx context.Context, c *kubermaticv1.Cluster
 }
 
 func GetJobCreators(data *resources.TemplateData) []reconciling.NamedJobCreatorGetter {
-	return []reconciling.NamedJobCreatorGetter{
-		// TODO: add the KYMA job creator
+	creators := make([]reconciling.NamedJobCreatorGetter, 0)
+
+	if _, ok := data.Cluster().Labels["kyma"]; ok {
+		creators = append(creators, kyma.InstallationJobCreator())
 	}
+
+	return creators
 }
 
 func (r *Reconciler) ensureJobs(ctx context.Context, c *kubermaticv1.Cluster, data *resources.TemplateData) error {

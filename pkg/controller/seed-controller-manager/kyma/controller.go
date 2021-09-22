@@ -3,14 +3,18 @@ package kyma
 import (
 	"context"
 	"fmt"
-
 	"go.uber.org/zap"
-
+	controllerutil "k8c.io/kubermatic/v2/pkg/controller/util"
 	kubermaticv1 "k8c.io/kubermatic/v2/pkg/crd/kubermatic/v1"
 	"k8c.io/kubermatic/v2/pkg/crd/kubermatic/v1/helper"
+	"k8c.io/kubermatic/v2/pkg/resources"
 	"k8c.io/kubermatic/v2/pkg/resources/kyma"
 	"k8c.io/kubermatic/v2/pkg/resources/reconciling"
 	"k8c.io/kubermatic/v2/pkg/util/workerlabel"
+	"k8c.io/kubermatic/v2/pkg/version/kubermatic"
+	batchv1 "k8s.io/api/batch/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -33,6 +37,7 @@ type reconciler struct {
 	workerName              string
 	recorder                record.EventRecorder
 	namespace               string
+	versions                kubermatic.Versions
 	seedClient              ctrlruntimeclient.Client
 }
 
@@ -42,6 +47,7 @@ func Add(
 	workerName string,
 	namespace string,
 	numWorkers int,
+	versions kubermatic.Versions,
 ) error {
 
 	workerSelector, err := workerlabel.LabelSelector(workerName)
@@ -56,11 +62,16 @@ func Add(
 		recorder:                mgr.GetEventRecorderFor(ControllerName),
 		namespace:               namespace,
 		seedClient:              mgr.GetClient(),
+		versions:                versions,
 	}
 
 	c, err := controller.New(ControllerName, mgr, controller.Options{Reconciler: reconciler, MaxConcurrentReconciles: numWorkers})
 	if err != nil {
 		return fmt.Errorf("failed to construct controller: %v", err)
+	}
+
+	if err := c.Watch(&source.Kind{Type: &batchv1.Job{}}, controllerutil.EnqueueClusterForNamespacedObject(mgr.GetClient())); err != nil {
+		return fmt.Errorf("failed to create watcher for jobs: %v", err)
 	}
 
 	if err := c.Watch(&source.Kind{Type: &kubermaticv1.Cluster{}}, &handler.EnqueueRequestForObject{}); err != nil {
@@ -95,19 +106,33 @@ func (r *reconciler) reconcile(ctx context.Context, cluster *kubermaticv1.Cluste
 		return nil
 	}
 
-	// If we don't need any specific additional logic to deploy this job, we can simply use the kubernetes controller in
-	// the seed-controller-manager
-	// TODO: check if kyma has been already correctly installed too
-	if cluster.Spec.Kyma != nil {
-		kymaInstaller := []reconciling.NamedJobCreatorGetter{
-			kyma.ControllerJobCreator(),
+	if _, ok := cluster.Labels["kyma"]; ok {
+		if helper.ClusterConditionHasStatus(cluster, kubermaticv1.ClusterConditionKymaInstalled, corev1.ConditionTrue) {
+			return nil
 		}
-
-		if err := reconciling.ReconcileJobs(ctx, kymaInstaller, cluster.Status.NamespaceName, r.seedClient); err != nil {
-			return err
+		kymaInstallerJob := &batchv1.Job{}
+		err := r.seedClient.Get(ctx, types.NamespacedName{Namespace: cluster.Status.NamespaceName, Name: resources.KymaJobInstallationName}, kymaInstallerJob)
+		if err != nil && !kerrors.IsNotFound(err) {
+			return fmt.Errorf("error while getting the installation job: %v", err)
 		}
-
+		if kymaInstallerJob.Status.Succeeded == 1 {
+			helper.SetClusterCondition(cluster, r.versions, kubermaticv1.ClusterConditionKymaInstalled, corev1.ConditionTrue, kubermaticv1.ReasonKymaInstallationCompleted, "")
+		} else {
+			kymaInstallerCreator := []reconciling.NamedJobCreatorGetter{
+				kyma.InstallationJobCreator(),
+			}
+			if err := reconciling.ReconcileJobs(ctx, kymaInstallerCreator, cluster.Status.NamespaceName, r.seedClient); err != nil {
+				return err
+			}
+			helper.SetClusterCondition(cluster, r.versions, kubermaticv1.ClusterConditionKymaInstalled, corev1.ConditionFalse, kubermaticv1.ReasonKymaInstallationInProgress, "")
+		}
 		return nil
+	} else {
+		_, condition := helper.GetClusterCondition(cluster, kubermaticv1.ClusterConditionKymaInstalled)
+		if condition == nil || condition.Reason == kubermaticv1.ReasonKymaUninstalled {
+			return nil
+		}
+		//TODO: to finish unistallation
 	}
 
 	return nil

@@ -267,7 +267,12 @@ const (
 	// enabled.
 	ClusterConditionCSIKubeletMigrationCompleted ClusterConditionType = "CSIKubeletMigrationCompleted"
 
-	ClusterConditionKymaInstalled ClusterConditionType = "KymaInstalled"
+	ClusterConditionKymaInstalled ClusterConditionType = "KymaInstallation"
+
+	ReasonKymaInstallationInProgress   = "KymaInstallationInProgress"
+	ReasonKymaInstallationCompleted    = "KymaInstallationCompleted"
+	ReasonKymaUninstallationInProgress = "KymaUninstallationInProgress"
+	ReasonKymaUninstalled              = "KymaUninstalled"
 
 	ReasonClusterUpdateSuccessful             = "ClusterUpdateSuccessful"
 	ReasonClusterUpdateInProgress             = "ClusterUpdateInProgress"

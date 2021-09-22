@@ -1,8 +1,6 @@
 package kyma
 
 import (
-	"fmt"
-
 	"k8c.io/kubermatic/v2/pkg/resources"
 	"k8c.io/kubermatic/v2/pkg/resources/reconciling"
 
@@ -12,86 +10,115 @@ import (
 )
 
 const (
-	jobInstallationName   = resources.JobInstallationName
+	jobInstallationName   = resources.KymaJobInstallationName
 	kymaContainerName     = "kyma"
-	kymaContainerImage    = "nginx"
-	jobUninstallationName = resources.JobUninstallationName
+	kymaContainerImage    = "piotrkpc/kyma_cli"
+	jobUninstallationName = resources.KymaJobUninstallationName
 )
 
-// ControllerJobCreator returns the function to create and update the Kyma installation job
-func ControllerJobCreator() reconciling.NamedJobCreatorGetter {
+func getResourceRequirements() corev1.ResourceRequirements {
+	return corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse("256Mi"),
+			corev1.ResourceCPU:    resource.MustParse("100m"),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse("1Gi"),
+			corev1.ResourceCPU:    resource.MustParse("200m"),
+		},
+	}
+}
+
+func getVolumes() []corev1.Volume {
+	return []corev1.Volume{
+		{
+			Name: resources.KymaInstallerKubeconfigSecretName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: resources.KymaInstallerKubeconfigSecretName,
+				},
+			},
+		},
+	}
+}
+
+func getVolumeMounts() []corev1.VolumeMount {
+	return []corev1.VolumeMount{
+		{
+			Name:      resources.KymaInstallerKubeconfigSecretName,
+			ReadOnly:  true,
+			MountPath: "/etc/kubernetes/kubeconfig",
+		},
+	}
+}
+
+func getEnvVars() []corev1.EnvVar {
+	return []corev1.EnvVar{
+		{
+			Name:  "KUBECONFIG",
+			Value: "/etc/kubernetes/kubeconfig/kubeconfig",
+		},
+	}
+}
+
+// InstallationJobCreator returns the function to create and update the Kyma installation job
+func InstallationJobCreator() reconciling.NamedJobCreatorGetter {
 	return func() (string, reconciling.JobCreator) {
 		return jobInstallationName, func(job *batchv1.Job) (*batchv1.Job, error) {
 			job.Name = jobInstallationName
-			//job.Labels = resources.BaseAppLabels(jobInstallationName, gatekeeperControllerLabels)
+			job.Labels = resources.BaseAppLabels(jobInstallationName, nil)
 
 			if job.Annotations == nil {
 				job.Annotations = make(map[string]string)
 			}
-			//job.Annotations["container.seccomp.security.alpha.kubernetes.io/manager"] = "runtime/default"
-
-			/*job.Spec.Selector = &metav1.LabelSelector{
-				MatchLabels: resources.BaseAppLabels(controllerName, gatekeeperControllerLabels),
-			}*/
-
-			/*job.Spec.Template.ObjectMeta = metav1.ObjectMeta{
-				Labels: resources.BaseAppLabels(controllerName, gatekeeperControllerLabels),
-			}*/
-
-			//job.Spec.Template.Spec.TerminationGracePeriodSeconds = pointer.Int64Ptr(60)
-			//job.Spec.Template.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "linux"}
-			//job.Spec.Template.Spec.ServiceAccountName = serviceAccountName
-			//job.Spec.Template.Spec.PriorityClassName = "system-cluster-critical"
 			job.Spec.Template.Spec.Containers = []corev1.Container{
 				{
 					Name:  kymaContainerName,
 					Image: kymaContainerImage,
+					Args: []string{
+						"deploy",
+						"--non-interactive",
+					},
+					Env:          getEnvVars(),
+					VolumeMounts: getVolumeMounts(),
+					Resources:    getResourceRequirements(),
 				},
 			}
 			job.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
-			err := resources.SetResourceRequirements(job.Spec.Template.Spec.Containers, defaultResourceRequirements, nil, job.Annotations)
-			if err != nil {
-				return nil, fmt.Errorf("failed to set resource requirements: %v", err)
-			}
-
-			// TODO: add the admin-kubeconfig volume
-			/*job.Spec.Template.Spec.Volumes = []corev1.Volume{
-				{
-					Name: resources.GatekeeperWebhookServerCertSecretName,
-					VolumeSource: corev1.VolumeSource{
-						Secret: &corev1.SecretVolumeSource{
-							SecretName: resources.GatekeeperWebhookServerCertSecretName,
-						},
-					},
-				},
-			}*/
+			job.Spec.Template.Spec.Volumes = getVolumes()
 
 			return job, nil
 		}
 	}
 }
 
-var (
-	defaultResourceRequirements = map[string]*corev1.ResourceRequirements{
-		jobInstallationName: {
-			Requests: corev1.ResourceList{
-				corev1.ResourceMemory: resource.MustParse("256Mi"),
-				corev1.ResourceCPU:    resource.MustParse("100m"),
-			},
-			Limits: corev1.ResourceList{
-				corev1.ResourceMemory: resource.MustParse("512Mi"),
-				corev1.ResourceCPU:    resource.MustParse("1"),
-			},
-		},
-		jobUninstallationName: {
-			Requests: corev1.ResourceList{
-				corev1.ResourceMemory: resource.MustParse("256Mi"),
-				corev1.ResourceCPU:    resource.MustParse("100m"),
-			},
-			Limits: corev1.ResourceList{
-				corev1.ResourceMemory: resource.MustParse("512Mi"),
-				corev1.ResourceCPU:    resource.MustParse("1"),
-			},
-		},
+// UninstallationJobCreator returns the function to create and update the Kyma uninstallation job
+func UninstallationJobCreator() reconciling.NamedJobCreatorGetter {
+	return func() (string, reconciling.JobCreator) {
+		return jobUninstallationName, func(job *batchv1.Job) (*batchv1.Job, error) {
+			job.Name = jobUninstallationName
+			job.Labels = resources.BaseAppLabels(jobUninstallationName, nil)
+
+			if job.Annotations == nil {
+				job.Annotations = make(map[string]string)
+			}
+			job.Spec.Template.Spec.Containers = []corev1.Container{
+				{
+					Name:  kymaContainerName,
+					Image: kymaContainerImage,
+					Args: []string{
+						"delete",
+						"--non-interactive",
+					},
+					Env:          getEnvVars(),
+					VolumeMounts: getVolumeMounts(),
+					Resources:    getResourceRequirements(),
+				},
+			}
+			job.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
+			job.Spec.Template.Spec.Volumes = getVolumes()
+
+			return job, nil
+		}
 	}
-)
+}

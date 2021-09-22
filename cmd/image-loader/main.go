@@ -285,7 +285,7 @@ func getImagesFromCreators(log *zap.SugaredLogger, templateData *resources.Templ
 
 	cronjobCreators := kubernetescontroller.GetCronJobCreators(templateData)
 
-	jobCreators := kubernetescontroller.GetJobCreators(templateData)
+	//jobCreators := kubernetescontroller.GetJobCreators(templateData)
 
 	for _, creatorGetter := range statefulsetCreators {
 		_, creator := creatorGetter()

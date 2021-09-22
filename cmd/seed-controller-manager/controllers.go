@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"k8c.io/kubermatic/v2/pkg/controller/seed-controller-manager/kyma"
 	"time"
 
 	"k8c.io/kubermatic/v2/pkg/controller/seed-controller-manager/addon"
@@ -33,7 +34,6 @@ import (
 	etcdrestorecontroller "k8c.io/kubermatic/v2/pkg/controller/seed-controller-manager/etcdrestore"
 	"k8c.io/kubermatic/v2/pkg/controller/seed-controller-manager/initialmachinedeployment"
 	kubernetescontroller "k8c.io/kubermatic/v2/pkg/controller/seed-controller-manager/kubernetes"
-	"k8c.io/kubermatic/v2/pkg/controller/seed-controller-manager/kyma"
 	"k8c.io/kubermatic/v2/pkg/controller/seed-controller-manager/mla"
 	"k8c.io/kubermatic/v2/pkg/controller/seed-controller-manager/monitoring"
 	"k8c.io/kubermatic/v2/pkg/controller/seed-controller-manager/pvwatcher"
@@ -488,6 +488,6 @@ func createKymaController(ctrlCtx *controllerContext) error {
 		ctrlCtx.runOptions.workerName,
 		ctrlCtx.runOptions.namespace,
 		ctrlCtx.runOptions.workerCount,
-		ctrlCtx.clientProvider,
+		ctrlCtx.versions,
 	)
 }
