@@ -19,8 +19,6 @@ package kubernetes
 import (
 	"context"
 	"fmt"
-	"k8c.io/kubermatic/v2/pkg/resources/kyma"
-
 	kubermaticv1 "k8c.io/kubermatic/v2/pkg/crd/kubermatic/v1"
 	"k8c.io/kubermatic/v2/pkg/resources"
 	"k8c.io/kubermatic/v2/pkg/resources/apiserver"
@@ -580,26 +578,6 @@ func (r *Reconciler) ensureCronJobs(ctx context.Context, c *kubermaticv1.Cluster
 	creators := GetCronJobCreators(data)
 
 	if err := reconciling.ReconcileCronJobs(ctx, creators, c.Status.NamespaceName, r.Client, reconciling.OwnerRefWrapper(resources.GetClusterRef(c))); err != nil {
-		return fmt.Errorf("failed to ensure that the CronJobs exists: %v", err)
-	}
-
-	return nil
-}
-
-func GetJobCreators(data *resources.TemplateData) []reconciling.NamedJobCreatorGetter {
-	creators := make([]reconciling.NamedJobCreatorGetter, 0)
-
-	if _, ok := data.Cluster().Labels["kyma"]; ok {
-		creators = append(creators, kyma.InstallationJobCreator())
-	}
-
-	return creators
-}
-
-func (r *Reconciler) ensureJobs(ctx context.Context, c *kubermaticv1.Cluster, data *resources.TemplateData) error {
-	creators := GetJobCreators(data)
-
-	if err := reconciling.ReconcileJobs(ctx, creators, c.Status.NamespaceName, r.Client, reconciling.OwnerRefWrapper(resources.GetClusterRef(c))); err != nil {
 		return fmt.Errorf("failed to ensure that the CronJobs exists: %v", err)
 	}
 

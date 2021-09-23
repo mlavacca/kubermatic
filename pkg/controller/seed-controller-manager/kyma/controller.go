@@ -3,21 +3,21 @@ package kyma
 import (
 	"context"
 	"fmt"
+	"github.com/go-test/deep"
 	"go.uber.org/zap"
 	controllerutil "k8c.io/kubermatic/v2/pkg/controller/util"
 	kubermaticv1 "k8c.io/kubermatic/v2/pkg/crd/kubermatic/v1"
 	"k8c.io/kubermatic/v2/pkg/crd/kubermatic/v1/helper"
+	kuberneteshelper "k8c.io/kubermatic/v2/pkg/kubernetes"
 	"k8c.io/kubermatic/v2/pkg/resources"
 	"k8c.io/kubermatic/v2/pkg/resources/kyma"
 	"k8c.io/kubermatic/v2/pkg/resources/reconciling"
-	"k8c.io/kubermatic/v2/pkg/util/workerlabel"
 	"k8c.io/kubermatic/v2/pkg/version/kubermatic"
 	batchv1 "k8s.io/api/batch/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -29,6 +29,8 @@ import (
 
 const (
 	ControllerName = "kyma_controller"
+
+	kymaJobFinalizer = "kubermatic.io/kyma-job"
 )
 
 type reconciler struct {
@@ -50,19 +52,13 @@ func Add(
 	versions kubermatic.Versions,
 ) error {
 
-	workerSelector, err := workerlabel.LabelSelector(workerName)
-	if err != nil {
-		return fmt.Errorf("failed to build worker-name selector: %v", err)
-	}
-
 	reconciler := &reconciler{
-		log:                     log.Named(ControllerName),
-		workerNameLabelSelector: workerSelector,
-		workerName:              workerName,
-		recorder:                mgr.GetEventRecorderFor(ControllerName),
-		namespace:               namespace,
-		seedClient:              mgr.GetClient(),
-		versions:                versions,
+		log:        log.Named(ControllerName),
+		workerName: workerName,
+		recorder:   mgr.GetEventRecorderFor(ControllerName),
+		namespace:  namespace,
+		seedClient: mgr.GetClient(),
+		versions:   versions,
 	}
 
 	c, err := controller.New(ControllerName, mgr, controller.Options{Reconciler: reconciler, MaxConcurrentReconciles: numWorkers})
@@ -106,33 +102,114 @@ func (r *reconciler) reconcile(ctx context.Context, cluster *kubermaticv1.Cluste
 		return nil
 	}
 
+	if cluster.Labels["worker-name"] != "popos" {
+		return nil
+	}
+
+	newCluster := cluster.DeepCopy()
+	_, clusterCondition := helper.GetClusterCondition(newCluster, kubermaticv1.ClusterConditionKymaInstalled)
+
+	kymaInstallerJob := &batchv1.Job{}
+	kymaInstallerGeterr := r.seedClient.Get(ctx, types.NamespacedName{Namespace: cluster.Status.NamespaceName, Name: resources.KymaJobInstallationName}, kymaInstallerJob)
+	if kymaInstallerGeterr != nil && !kerrors.IsNotFound(kymaInstallerGeterr) {
+		return fmt.Errorf("error while getting the installation job: %v", kymaInstallerGeterr)
+	}
+
+	kymaUninstallerJob := &batchv1.Job{}
+	kymaUninstallerGeterr := r.seedClient.Get(ctx, types.NamespacedName{Namespace: cluster.Status.NamespaceName, Name: resources.KymaJobUninstallationName}, kymaUninstallerJob)
+	if kymaUninstallerGeterr != nil && !kerrors.IsNotFound(kymaUninstallerGeterr) {
+		return fmt.Errorf("error while getting the uninstallation job: %v", kymaUninstallerGeterr)
+	}
+
+	if kymaInstallerJob.DeletionTimestamp != nil && (clusterCondition == nil || clusterCondition.Reason != kubermaticv1.ReasonKymaInstallationInProgress) {
+		if kuberneteshelper.HasFinalizer(kymaInstallerJob, kymaJobFinalizer) {
+			kuberneteshelper.RemoveFinalizer(kymaInstallerJob, kymaJobFinalizer)
+			if err := r.seedClient.Update(ctx, kymaInstallerJob); err != nil {
+				return err
+			}
+		}
+	}
+
+	if kymaUninstallerJob.DeletionTimestamp != nil && (clusterCondition == nil || clusterCondition.Reason != kubermaticv1.ReasonKymaUninstallationInProgress) {
+		if kuberneteshelper.HasFinalizer(kymaUninstallerJob, kymaJobFinalizer) {
+			kuberneteshelper.RemoveFinalizer(kymaUninstallerJob, kymaJobFinalizer)
+			if err := r.seedClient.Update(ctx, kymaUninstallerJob); err != nil {
+				return err
+			}
+		}
+	}
+
 	if _, ok := cluster.Labels["kyma"]; ok {
 		if helper.ClusterConditionHasStatus(cluster, kubermaticv1.ClusterConditionKymaInstalled, corev1.ConditionTrue) {
 			return nil
 		}
-		kymaInstallerJob := &batchv1.Job{}
-		err := r.seedClient.Get(ctx, types.NamespacedName{Namespace: cluster.Status.NamespaceName, Name: resources.KymaJobInstallationName}, kymaInstallerJob)
-		if err != nil && !kerrors.IsNotFound(err) {
-			return fmt.Errorf("error while getting the installation job: %v", err)
-		}
-		if kymaInstallerJob.Status.Succeeded == 1 {
-			helper.SetClusterCondition(cluster, r.versions, kubermaticv1.ClusterConditionKymaInstalled, corev1.ConditionTrue, kubermaticv1.ReasonKymaInstallationCompleted, "")
+		if !kerrors.IsNotFound(kymaUninstallerGeterr) {
+			if kymaUninstallerJob.Status.Succeeded == 1 {
+				if kymaUninstallerJob.DeletionTimestamp == nil {
+					// delete installer
+					if err := r.seedClient.Delete(ctx, kymaUninstallerJob); err != nil {
+						return fmt.Errorf("error while deleting installer")
+					}
+				}
+				helper.SetClusterCondition(newCluster, r.versions, kubermaticv1.ClusterConditionKymaInstalled, corev1.ConditionFalse, kubermaticv1.ReasonKymaUninstalled, "")
+			}
 		} else {
-			kymaInstallerCreator := []reconciling.NamedJobCreatorGetter{
-				kyma.InstallationJobCreator(),
+			if kymaInstallerJob.Status.Succeeded == 1 {
+				helper.SetClusterCondition(newCluster, r.versions, kubermaticv1.ClusterConditionKymaInstalled, corev1.ConditionTrue, kubermaticv1.ReasonKymaInstallationCompleted, "")
+			} else {
+				kymaInstallerCreator := []reconciling.NamedJobCreatorGetter{
+					// enforce installer with finalizer
+					kyma.InstallationJobCreator(func(job *batchv1.Job) {
+						job.Finalizers = []string{
+							kymaJobFinalizer,
+						}
+					}),
+				}
+				if err := reconciling.ReconcileJobs(ctx, kymaInstallerCreator, cluster.Status.NamespaceName, r.seedClient); err != nil {
+					return err
+				}
+				helper.SetClusterCondition(newCluster, r.versions, kubermaticv1.ClusterConditionKymaInstalled, corev1.ConditionFalse, kubermaticv1.ReasonKymaInstallationInProgress, "")
 			}
-			if err := reconciling.ReconcileJobs(ctx, kymaInstallerCreator, cluster.Status.NamespaceName, r.seedClient); err != nil {
-				return err
-			}
-			helper.SetClusterCondition(cluster, r.versions, kubermaticv1.ClusterConditionKymaInstalled, corev1.ConditionFalse, kubermaticv1.ReasonKymaInstallationInProgress, "")
 		}
-		return nil
 	} else {
-		_, condition := helper.GetClusterCondition(cluster, kubermaticv1.ClusterConditionKymaInstalled)
-		if condition == nil || condition.Reason == kubermaticv1.ReasonKymaUninstalled {
+		if clusterCondition == nil || clusterCondition.Reason == kubermaticv1.ReasonKymaUninstalled {
 			return nil
 		}
-		//TODO: to finish unistallation
+		if !kerrors.IsNotFound(kymaInstallerGeterr) {
+			if kymaInstallerJob.Status.Succeeded == 1 {
+				if kymaInstallerJob.DeletionTimestamp == nil {
+					// delete installer
+					if err := r.seedClient.Delete(ctx, kymaInstallerJob); err != nil {
+						return fmt.Errorf("error while deleting installer")
+					}
+				}
+				helper.SetClusterCondition(newCluster, r.versions, kubermaticv1.ClusterConditionKymaInstalled, corev1.ConditionTrue, kubermaticv1.ReasonKymaInstallationCompleted, "")
+			}
+		} else {
+			if kymaUninstallerJob.Status.Succeeded == 1 {
+				helper.SetClusterCondition(newCluster, r.versions, kubermaticv1.ClusterConditionKymaInstalled, corev1.ConditionFalse, kubermaticv1.ReasonKymaUninstalled, "")
+			} else {
+				// deploy uninstallation
+				kymaUninstallerCreator := []reconciling.NamedJobCreatorGetter{
+					// enforce uninstaller with finalizer
+					kyma.UninstallationJobCreator(func(job *batchv1.Job) {
+						job.Finalizers = []string{
+							kymaJobFinalizer,
+						}
+					}),
+				}
+				if err := reconciling.ReconcileJobs(ctx, kymaUninstallerCreator, cluster.Status.NamespaceName, r.seedClient); err != nil {
+					return err
+				}
+				helper.SetClusterCondition(newCluster, r.versions, kubermaticv1.ClusterConditionKymaInstalled, corev1.ConditionFalse, kubermaticv1.ReasonKymaUninstallationInProgress, "")
+			}
+		}
+	}
+
+	if diff := deep.Equal(cluster.Status, newCluster.Status); diff != nil {
+		if err := r.seedClient.Patch(ctx, newCluster, ctrlruntimeclient.MergeFrom(cluster)); err != nil {
+			return fmt.Errorf("failed to update cluster: %v", err)
+		}
 	}
 
 	return nil

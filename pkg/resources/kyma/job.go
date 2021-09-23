@@ -62,15 +62,12 @@ func getEnvVars() []corev1.EnvVar {
 }
 
 // InstallationJobCreator returns the function to create and update the Kyma installation job
-func InstallationJobCreator() reconciling.NamedJobCreatorGetter {
+func InstallationJobCreator(m func(job *batchv1.Job)) reconciling.NamedJobCreatorGetter {
 	return func() (string, reconciling.JobCreator) {
 		return jobInstallationName, func(job *batchv1.Job) (*batchv1.Job, error) {
 			job.Name = jobInstallationName
 			job.Labels = resources.BaseAppLabels(jobInstallationName, nil)
 
-			if job.Annotations == nil {
-				job.Annotations = make(map[string]string)
-			}
 			job.Spec.Template.Spec.Containers = []corev1.Container{
 				{
 					Name:  kymaContainerName,
@@ -87,13 +84,17 @@ func InstallationJobCreator() reconciling.NamedJobCreatorGetter {
 			job.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
 			job.Spec.Template.Spec.Volumes = getVolumes()
 
+			if m != nil {
+				m(job)
+			}
+
 			return job, nil
 		}
 	}
 }
 
 // UninstallationJobCreator returns the function to create and update the Kyma uninstallation job
-func UninstallationJobCreator() reconciling.NamedJobCreatorGetter {
+func UninstallationJobCreator(m func(job *batchv1.Job)) reconciling.NamedJobCreatorGetter {
 	return func() (string, reconciling.JobCreator) {
 		return jobUninstallationName, func(job *batchv1.Job) (*batchv1.Job, error) {
 			job.Name = jobUninstallationName
@@ -117,6 +118,10 @@ func UninstallationJobCreator() reconciling.NamedJobCreatorGetter {
 			}
 			job.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
 			job.Spec.Template.Spec.Volumes = getVolumes()
+
+			if m != nil {
+				m(job)
+			}
 
 			return job, nil
 		}
